@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhotoLite - Web Image Editor</title>
+    <style>
+        :root {
+            --bg-dark: #2b2b2b;
+            --bg-panel: #323232;
+            --bg-tool: #4a4a4a;
+            --accent: #378ef0;
+            --text: #eeeeee;
+            --border: #1f1f1f;
+        }
+
+        * { box-sizing: border-box; user-select: none; }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Bar */
+        .menubar {
+            height: 30px;
+            background-color: var(--bg-dark);
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border-bottom: 1px solid #000;
+            font-size: 12px;
+        }
+        .menu-item { margin-right: 15px; cursor: pointer; }
+        .menu-item:hover { color: var(--accent); }
+
+        /* Main Layout */
+        .workspace {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - 30px);
+        }
+
+        /* Toolbar (Left) */
+        .toolbar {
+            width: 50px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+        }
+        
+        .tool {
+            width: 36px;
+            height: 36px;
+            border-radius: 3px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+        .tool img { width: 70%; height: 70%; object-fit: contain; }
+
+        .tool:hover { background-color: var(--bg-tool); }
+        .tool.active { background-color: var(--bg-tool); border-left: 2px solid var(--accent); }
+
+        /* Color Picker Styles */
+        input[type="color"] {
+            border: none;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            background: none;
+            cursor: pointer;
+        }
+
+        /* Canvas Area (Center) */
+        .viewport {
+            flex: 1;
+            background-color: #1e1e1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            position: relative;
+        }
+
+        #main-canvas {
+            background-color: #ffffff;
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(-45deg, #ccc 25%, transparent 25%), 
+                              linear-gradient(45deg, transparent 75%, #ccc 75%), 
+                              linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        /* Sidebar (Right) */
+        .sidebar {
+            width: 260px;
+            background-color: var(--bg-panel);
+            border-left: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel {
+            padding: 10px;
+            border-bottom: 1px solid #000;
+        }
+
+        .panel-header {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #888;
+        }
+
+        /* Sliders */
+        .control-group { margin-bottom: 10px; }
+        .control-group label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+        input[type=range] { width: 100%; }
+
+        /* Layers Panel */
+        .layers-list {
+            flex: 1;
+            overflow-y: auto;
+            background-color: var(--bg-dark);
+            max-height: 300px;
+        }
+
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #3a3a3a;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .layer-item.active { background-color: #454545; }
+        .layer-item:hover { background-color: #3a3a3a; }
+        
+        .layer-vis { margin-right: 8px; cursor: pointer; color: #888; width: 15px; text-align: center; }
+        .layer-vis.visible { color: var(--text); }
+        .layer-thumb { width: 30px; height: 30px; background: white; margin-right: 10px; border: 1px solid #555; }
+        .layer-name { flex: 1; }
+
+        .sidebar-footer {
+            padding: 10px;
+            display: flex;
+            justify-content: space-around;
+            background: var(--bg-panel);
+            border-top: 1px solid #000;
+        }
+
+        button {
+            background: var(--bg-tool);
+            border: 1px solid #000;
+            color: white;
+            padding: 5px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        button:hover { background: #5a5a5a; }
+
+        select {
+            width: 100%;
+            background: var(--bg-dark);
+            color: white;
+            border: 1px solid #000;
+            padding: 4px;
+        }
+
+        #image-upload { display: none; }
+
+    </style>
+</head>
+<body>
+
+    <div class="menubar">
+        <div class="menu-item" onclick="app.download()">File > Export as PNG</div>
+        <div class="menu-item" onclick="document.getElementById('image-upload').click()">File > Import Image</div>
+        <div class="menu-item" onclick="app.clearLayer()">Edit > Clear Layer</div>
+        <div class="menu-item" onclick="app.undo()">Edit > Undo (Ctrl+Z)</div>
+        <input type="file" id="image-upload" accept="image/*" onchange="app.handleImageUpload(event)">
+        <div style="flex:1"></div>
+        <div class="menu-item">PhotoLite v1.0 | Copyright Stenoip Company</div>
+    </div>
+
+    <div class="workspace">
+        <div class="toolbar">
+            <div class="tool active" id="tool-brush" title="Brush Tool (B)" onclick="app.setTool('brush')"><img src="js/icons/brush.png" alt="Brush"></div>
+            <div class="tool" id="tool-eraser" title="Eraser Tool (E)" onclick="app.setTool('eraser')"><img src="js/icons/eraser.png" alt="Eraser"></div>
+            <div class="tool" style="cursor: default">
+                <input type="color" id="colorPicker" value="#000000" onchange="app.setColor(this.value)">
+            </div>
+            <div style="margin-top: auto; margin-bottom: 10px;">
+                <div class="tool" title="Undo" onclick="app.undo()"><img src="js/icons/undo.png" alt="Undo"></div>
+            </div>
+        </div>
+
+        <div class="viewport">
+            <canvas id="main-canvas" width="800" height="600"></canvas>
+        </div>
+
+        <div class="sidebar">
+            
+            <div class="panel">
+                <div class="panel-header">Tool Properties</div>
+                <div class="control-group">
+                    <label>Size <span id="val-size">20px</span></label>
+                    <input type="range" min="1" max="100" value="20" oninput="app.setBrushSize(this.value)">
+                </div>
+                <div class="control-group">
+                    <label>Opacity <span id="val-opacity">100%</span></label>
+                    <input type="range" min="1" max="100" value="100" oninput="app.setOpacity(this.value)">
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Adjustments</div>
+                <div class="control-group">
+                    <label>Blend Mode</label>
+                    <select id="blendMode" onchange="app.setBlendMode(this.value)">
+                        <option value="source-over">Normal</option>
+                        <option value="multiply">Multiply</option>
+                        <option value="screen">Screen</option>
+                        <option value="overlay">Overlay</option>
+                        <option value="color-dodge">Color Dodge</option>
+                        <option value="difference">Difference</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Filter</label>
+                    <div style="display:flex; gap:5px;">
+                        <button onclick="app.applyFilter('blur')">Blur</button>
+                        <button onclick="app.applyFilter('invert')">Invert</button>
+                        <button onclick="app.applyFilter('grayscale')">B&W</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" style="flex:1; display:flex; flex-direction: column; border-bottom: none;">
+                <div class="panel-header">Layers</div>
+                <div class="layers-list" id="layer-container">
+                    </div>
+                <div class="sidebar-footer">
+                    <button onclick="app.addLayer()"><img src="js/icons/add.png" alt="Add" style="width:12px; height:12px; margin-right: 5px;">New</button>
+                    <button onclick="app.deleteLayer()"><img src="js/icons/delete.png" alt="Delete" style="width:12px; height:12px;"></button>
+                    <button onclick="app.mergeDown()"><img src="js/icons/merge.png" alt="Merge" style="width:12px; height:12px;"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/layer.js"></script>
+    <script src="js/photolite.js"></script>
+</body>
+</html>
